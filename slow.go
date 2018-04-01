@@ -76,14 +76,14 @@ func main() {
 // starts a new routine that continuously sends packets to the server
 // to keep the connection
 func (m *connection) start(timeout *uint64, quit chan bool) {
-	log.Printf("Starting worker from socket = [%d]\n", m.id)
+	log.Printf("Starting worker for #%d socket\n", m.id)
 	defer m.conn.Close()
 
-	log.Printf("Sending initial payload from socket = [%d]\n", m.id)
+	log.Printf("Sending initial payload to #%d socket\n", m.id)
 	packet := []byte(*m.payload)
 	_, err := m.conn.Write(packet)
 	if err != nil {
-		log.Printf("Failed to send the initial packet for socket id=[%d]: %v", m.id, err)
+		log.Printf("Failed to send the initial packet to #%d socket: %v", m.id, err)
 	}
 
 	sleep := time.Second * time.Duration(*timeout)
@@ -91,7 +91,7 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 	for {
 		select {
 		case <-quit:
-			log.Printf("Stop sending random packets to socket = [%d]\n", m.id)
+			log.Printf("Stop sending random packets to #%d socket\n", m.id)
 			return
 		default:
 			time.Sleep(sleep)
@@ -101,11 +101,11 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 
 			_, err = m.conn.Write(randPackets)
 			if err != nil {
-				log.Printf("Failed sending random packet to socket = [%d] to the server:\n\t%v\n", m.id, err)
+				log.Printf("Failed sending random packet to #%d socket:\n\t%v\n", m.id, err)
 				return
 			}
 
-			log.Printf("Sent random packet to socket = [%d]\n", m.id)
+			log.Printf("Sent random packet to #%d socket\n", m.id)
 		}
 	}
 }
@@ -126,7 +126,7 @@ func monitor(attack *attackParams, address *net.TCPAddr, path string, id int, qu
 				time.Sleep(retry)
 				continue
 			} else {
-				log.Printf("Successfully opened another socket = [%d]\n", id)
+				log.Printf("Successfully opened #%d socket\n", id)
 			}
 
 			go connection.start(attack.timeout, quit)
