@@ -39,10 +39,10 @@ func main() {
 		if err != nil {
 			switch err.Err.(type) {
 			case *os.SyscallError:
-				// os related errors
+				// os related errors, e.g.
+				// connection refuse from the server, socket opening problems
 				log.Println(err.Err)
 				log.Println("Starting a new monitoring routine")
-				log.Println(err.Temporary())
 				go monitor(attack, "192.168.0.102:8080", i, quit)
 			case *net.DNSError:
 				// if we reached this case, then most
