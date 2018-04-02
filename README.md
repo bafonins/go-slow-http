@@ -19,7 +19,24 @@ Connection: keep-alive\r\n\r\n
 
 Once this request is received by the victim, the web server will issue a new thread from a thread pool to serve the request (speaking about Apache). In this case we simply request the home of `google.com`. Afterwards, the server might perform some business logic and then read static assets required to render the requested page and send it back to the client. This is a regular behaviour of the GET request.
 
-As you can see the request has a certain format, what is important for the slow http attack is that each header ends with the carrent return and the new line characters and the end of the request must have four characters: `\r\n\r\n`. What happens if you never send the last two `\r\n`, but send some random data? In this case the victim will accept the rest and wait for the ending sequence. Note, that the core of the GET request are only first two lines of the request example shown above. The clients can add any custom headers that will be valid.
+As you can see the request has a certain format, what is important for the slow http attack is that each header ends with the carrent return and the new line characters and the end of the request must have four characters: `\r\n\r\n`. What happens if you never send the last two `\r\n`, but send some random data instead? In this case the victim will accept the rest and keep waiting for the ending sequence. Note, that the core of the GET request are only first two lines of the request example shown above. The clients can add any custom headers and those will be valid. Hence, in this way the attacker can occupy the resources of the target server and make the application unreachable for regular users, simply because there will not any threads left to serve more clients.
+
+```
+  VICTIM                   ATTACKER
+     |                        |
+     |<---- partial req. -----|
+     |         wait           |
+     |<---- random value -----|
+     |         wait           |
+     |<---- random value -----|
+     |         wait           |
+     |<---- random value -----|
+     |         wait           |
+     |<---- random value -----|
+     |         ...            |
+```
+
+
 
 ## Features
 
