@@ -1,6 +1,6 @@
 # Slow HTTP attack
 
-This repository contains a custom implementation of the well known DoS attack called Slow HTTP attack, also known as slowloris.
+This repository contains a custom implementation of the well known DoS attack called Slow HTTP attack, also known as slowloris. The tool was made only for educational purposes for the 2IC80 course at TU/e.
 
 ## Background
 
