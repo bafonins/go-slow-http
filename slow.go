@@ -162,11 +162,11 @@ func createConnection(address *net.TCPAddr, path, agent string, id int, quit cha
 }
 
 func parseArguments() *attackParams {
-	server := flag.String("s", "http://localhost:8080", "The network address of the victim")
-	connectionsNr := flag.Uint64("c", 350, "The number of connections to establish with the victims server")
-	timeout := flag.Uint64("t", 10, "The time between sending packets in every active connection (in seconds)")
-	agentsPath := flag.String("ap", "agents.txt", "The file name with different user agents")
-	duration := flag.Uint64("d", 10*60, "The duration of the attack (in seconds)")
+	server := flag.String("s", "http://localhost:8080", "The address of the victim")
+	connectionsNr := flag.Uint64("c", 350, "The number of connections to establish with the victim")
+	timeout := flag.Uint64("t", 10, "The time between sending packets in every active connection in seconds")
+	agentsPath := flag.String("ap", "agents.txt", "The file name with varius User-Agent headers. Is optional")
+	duration := flag.Uint64("d", 10*60, "The duration of the attack in seconds")
 	flag.Parse()
 
 	if !strings.Contains(*server, "http://") && !strings.Contains(*server, "https://") {
