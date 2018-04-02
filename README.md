@@ -4,6 +4,23 @@ This repository contains a custom implementation of the well known DoS attack ca
 
 ## Background
 
+The slow HTTP attack is a denial of service attack. The attack is interesting because of its simplicity and effectiveness. The main idea of any denial of service attack is to make a remote machine, referenced as the victim/target further in the text, unavailable to its intended users. This is accomplished by flooding the victim by myriads of dummy(no one is interested in the actual response) requests, such that the bandwidth of the target is overwhelmed and the resources become unreachable.
+
+Unlike regular bandwidth-consumption attacks, the slow HTTP attack does not require a large amount of data sent to the victim and can be performed from a single machine. The attacker's machine tries to open as many connections to the target's machine as possible and keep them as long as possible. How we can the connection for a long time? Let's examine a regular HTTP GET request.
+
+```
+GET / HTTP/1.1\r\n
+Host: google.com\r\n
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5 (.NET CLR 3.5.30729)\r\n
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n
+Accept-Language: en-us,en;q=0.5\r\n
+Connection: keep-alive\r\n\r\n
+```
+
+Once this request is received by the victim, the web server will issue a new thread from a thread pool to serve the request (speaking about Apache). In this case we simply request the home of `google.com`. Afterwards, the server might perform some business logic and then read static assets required to render the requested page and send it back to the client. This is a regular behaviour of the GET request.
+
+As you can see the request has a certain format, what is important for the slow http attack is that each header ends with the carrent return and the new line characters and the end of the request must have four characters: `\r\n\r\n`. What happens if you never send the last two `\r\n`, but send some random data? In this case the victim will accept the rest and wait for the ending sequence. Note, that the core of the GET request are only first two lines of the request example shown above. The clients can add any custom headers that will be valid.
+
 ## Features
 
 ## Examples
@@ -33,3 +50,5 @@ The tool comes with a set of inline parameters that can be passed to the program
 ```
 
 For example, running `./slow-http -s http://localhost:8080 -t 5 -d 600 -c 1000` will try to create 1000 tcp connections to the localhost:8080, send packets to each active connection every 5 seconds and will last for 10 minutes.
+
+The tool was tested on Apache web server and Tomcat with standard configuration of the server. 
