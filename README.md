@@ -52,14 +52,16 @@ From this point you are prepared to perform the slowloris attack using the tool.
 ### Execute
 The tool comes with a set of inline parameters that can be passed to the program. These are:
 ```
+  -a bool
+      Take all resources available automatically (default not used)
   -ap string
     	The file name with varius User-Agent headers. Is optional (default "agents.txt")
   -c uint
-    	The number of connections to establish with the victim (default 350)
+    	The number of connections to establish with the victim (default 5)
   -d uint
     	The duration of the attack in seconds (default 600)
   -s string
-    	The address of the victim (default "http://127.0.0.1:8080")
+    	The address of the victim (default "http://localhost:8080")
   -t uint
     	The time between sending packets in every active connection in seconds (default 10)
 ```
