@@ -44,6 +44,7 @@ As you can see the request has a certain format, what is important for the slow 
 First, since the program is written in Golang you have to install binaries for your operating system. Follow instructions listed on the official [Getting Started](https://golang.org/doc/install) page. Once, Golang is installed, clone this repository and build the program:
 ```
   git clone git@github.com:bafonins/go-slow-http.git
+  go get golang.org/x/net/proxy
   cd go-slow-http
   go build
 ```
@@ -52,20 +53,28 @@ From this point you are prepared to perform the slowloris attack using the tool.
 ### Execute
 The tool comes with a set of inline parameters that can be passed to the program. These are:
 ```
-  -a bool
-      Take all resources available automatically (default not used)
+  -a bool 
+      Take all resources available automatically
   -ap string
     	The file name with varius User-Agent headers. Is optional (default "agents.txt")
   -c uint
     	The number of connections to establish with the victim (default 5)
   -d uint
     	The duration of the attack in seconds (default 600)
+  -pa string
+    	The address of the proxy server [host:port]
+  -ppw string
+    	The password for the proxy auth
+  -proxy bool
+    	Use sock5 proxy
+  -pu string
+    	The username for the proxy auth
   -s string
     	The address of the victim (default "http://localhost:8080")
   -t uint
     	The time between sending packets in every active connection in seconds (default 10)
 ```
 
-For example, running `./slow-http -s http://localhost:8080 -t 5 -d 600 -c 1000` will try to create 1000 tcp connections to the localhost:8080, send packets to each active connection every 5 seconds and will last for 10 minutes.
+For example, running `./slow-http -s http://localhost:8080 -t 5 -d 600 -c 1000` will try to create 1000 tcp connections to the localhost:8080, send packets to each active connection every 5 seconds and will last for 10 minutes. To use proxy specify the `-proxy -pa 'proxy server'` flags and credentials if necessary.
 
 The tool was tested on Apache web server and Tomcat with standard configuration of the server. 
