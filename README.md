@@ -42,8 +42,8 @@ As you can see the request has a certain format, what is important for the slow 
   - Auto mode: the tool will try to establish as many connections as possible. Because of the limitations of TCP there will be 64K connections at most (also take into account that some ports are reserver by your OS)
   - Custom mode: configure the amount of connections to be established, duration of the attack, timeout between sending messages, etc.
 - [x] SOCK5 proxy support
-  - If you have access to a SOCK5 proxy, you can use it to perform the attack
-  - Solves the issue with the TCP limitations. Simply open severals terminal and execute the tool from your machine and a proxy
+  - If you have access to a SOCK5 proxy, you can use it to perform the attack. Also, [here](https://www.socks-proxy.net/) is the list of free proxy servers and there are others
+  - Solves the issue with the TCP limitations. Simply open severals terminals and execute the tool from your machine and a proxy
 - [x] Auto recovery
   - If the connection you and the server breaks, the tool will try to establish it again automatically, despite the mode the tool executes in.
 
