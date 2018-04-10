@@ -101,7 +101,6 @@ func main() {
 	i := 0
 	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
-		log.Println("dayum son")
 		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, dial, i)
 		if err != nil {
 			opErr := err.(*net.OpError)
