@@ -38,13 +38,22 @@ As you can see the request has a certain format, what is important for the slow 
 
 ## Features
 
+- [x] Easy to configure
+  - Auto mode: the tool will try to establish as many connections as possible. Because of the limitations of TCP there will be 64K connections at most (also take into account that some ports are reserver by your OS)
+  - Custom mode: configure the amount of connections to be established, duration of the attack, timeout between sending messages, etc.
+- [x] SOCK5 proxy support
+  - If you have access to a SOCK5 proxy, you can use it to perform the attack
+  - Solves the issue with the TCP limitations. Simply open severals terminal and execute the tool from your machine and a proxy
+- [x] Auto recovery
+  - If the connection you and the server breaks, the tool will try to establish it again automatically, despite the mode the tool executes in.
+
 ## Examples
 
 ### Setup
 First, since the program is written in Golang you have to install binaries for your operating system. Follow instructions listed on the official [Getting Started](https://golang.org/doc/install) page. Once, Golang is installed, clone this repository and build the program:
 ```
   git clone git@github.com:bafonins/go-slow-http.git
-  go get golang.org/x/net/proxy
+  go get golang.org/x/net/proxy // get this even if you dont plan to use socks5 proxy
   cd go-slow-http
   go build
 ```
@@ -77,4 +86,6 @@ The tool comes with a set of inline parameters that can be passed to the program
 
 For example, running `./slow-http -s http://localhost:8080 -t 5 -d 600 -c 1000` will try to create 1000 tcp connections to the localhost:8080, send packets to each active connection every 5 seconds and will last for 10 minutes. To use proxy specify the `-proxy -pa 'proxy server'` flags and credentials if necessary.
 
-The tool was tested on Apache web server and Tomcat with standard configuration of the server. 
+The tool was tested on Apache web server and Tomcat with standard configuration of the server.
+
+### Demo
