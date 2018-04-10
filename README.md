@@ -84,6 +84,10 @@ The tool comes with a set of inline parameters that can be passed to the program
     	The time between sending packets in every active connection in seconds (default 10)
 ```
 
+Notes on the input parameters:
+  - If the **-a** flag is used, the **-c** flag is ignored
+  - The **-s** flag requires a port number, same for **-pa**
+
 For example, running `./slow-http -s http://localhost:8080 -t 5 -d 600 -c 1000` will try to create 1000 tcp connections to the localhost:8080, send packets to each active connection every 5 seconds and will last for 10 minutes. To use proxy specify the `-proxy -pa 'proxy server'` flags and credentials if necessary.
 
 The tool was tested on Apache web server and Tomcat with standard configuration of the server.
