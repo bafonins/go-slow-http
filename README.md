@@ -38,7 +38,7 @@ As one can notice, the request has a certain format; it starts with`{HTTP method
      |         ...            |
 ```
 
-Every time the victim is about to close the connection, because nothing is sent, the attacker sent a random piece of information, informing the victim that the connection must be kept opened. The client is just s . .  . . . . l . . . . . . . o . . . . . . w
+Every time the victim is about to close the connection, because nothing is sent, the attacker sends a random piece of information, informing the victim that the connection must be kept opened. The client is just s . .  . . . . l . . . . . . . o . . . . . . w
 
 ## Features
 
