@@ -6,7 +6,9 @@ This repository contains a custom implementation of the well known DoS attack ca
 
 The slow HTTP attack is a denial of service attack. The attack is interesting because of its simplicity and effectiveness. The main idea of any denial of service attack is to make a remote machine, referenced as the victim/target further in the text, unavailable to its intended users. This is accomplished by flooding the victim by myriads of dummy(no one is interested in the actual response) requests, such that the bandwidth of the target is overwhelmed and the resources become unreachable.
 
-Unlike regular bandwidth-consumption attacks, the slow HTTP attack does not require a large amount of data sent to the victim and can be performed from a single machine. The attacker's machine tries to open as many connections to the target's machine as possible and keep them as long as possible. How we can the connection for a long time? Let's examine a regular HTTP GET request.
+Unlike regular bandwidth-consumption attacks, the slow HTTP attack does not require a large amount of data sent to the victim and can be performed from a single machine. What is more, the attacker can continue using the machine for surfing the web as he/she would normally do without experiencing any noticable delays. 
+
+In order to explain the main idea of the slowloris attack, let's examine a regular HTTP GET request that is sent by the clients browser to the requested server.
 
 ```
 GET / HTTP/1.1\r\n
@@ -17,9 +19,9 @@ Accept-Language: en-us,en;q=0.5\r\n
 Connection: keep-alive\r\n\r\n
 ```
 
-Once this request is received by the victim, the web server will issue a new thread from a thread pool to serve the request (speaking about Apache). In this case we simply request the home of `google.com`. Afterwards, the server might perform some business logic and then read static assets required to render the requested page and send it back to the client. This is a regular behaviour of the GET request.
+Once this request is received by the server, it will issue a new thread from a thread pool to serve the request (speaking about Apache). In this case we simply request the homepage of `google.com`. Afterwards, the server might perform some business logic and then read static assets required to render the requested page on the clients side and eventually send it back to the client. This is a standard sequence of steps taken to serve a GET request.
 
-As you can see the request has a certain format, what is important for the slow http attack is that each header ends with the carrent return and the new line characters and the end of the request must have twice of that sequence: `\r\n\r\n`. What happens if you never send the last two `\r\n`, but send some random data instead? In this case the victim will keep accepting those and wait for the ending sequence. Note, that the core of the GET request are only first two lines of the example shown above. The clients can add any custom headers and those will be valid. Hence, in this way the attacker can create more connections and occupy the resources of the target server and make the application unreachable for regular users, simply because there will not any threads left to serve more clients. See the scheme below. It shows a sequence of messages send by the attacker in one connection. For successfull DoS attack there have to be more connections - the more the better.
+As one can notice, the request has a certain format; it starts with`{HTTP method} {path} HTTP/{version}`, contains key-value pairs with some relevant information about you browser, every line ends with a sequence `\r\n`, etc. If you violate this format, the server most probably will not serve the page you requested. What is the most important part for the slow http attack is that each header ends with the carrent return and the new line characters and the end of the request must have twice of that sequence: `\r\n\r\n`. This ending sequence informs the server that the request is complete and can be processed. But what happens if you never send the last two `\r\n`, but send some random data instead? In this case the victim will keep accepting those and wait for the ending sequence. Note, that the core of the GET request are only first two lines of the example shown above. The clients can add any custom headers and those will be valid. Hence, in this way the attacker can create more connections and occupy the resources of the target server and make the application unreachable for regular users, simply because there will not any threads left to serve more clients. See the scheme below. It shows a sequence of messages send by the attacker in one connection. For successfull DoS attack there have to be more connections - the more the better.
 
 ```
   VICTIM                   ATTACKER
@@ -35,6 +37,8 @@ As you can see the request has a certain format, what is important for the slow 
      |<---- random value -----|
      |         ...            |
 ```
+
+Every time the victim is about to close the connection, because nothing is sent, the attacker sent a random piece of information, informing the victim that the connection must be kept opened. The client is just s . .  . . . . l . . . . . . . o . . . . . . w
 
 ## Features
 
