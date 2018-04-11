@@ -155,7 +155,7 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 		case <-quit:
 			return
 		default:
-			time.Sleep(time.Duration(rand.Int63n(int64(*timeout) + 1)))
+			time.Sleep(time.Second * time.Duration(rand.Int63n(int64(*timeout)+1)))
 
 			// send 1 byte packet every time
 			randPackets := make([]byte, 1)
