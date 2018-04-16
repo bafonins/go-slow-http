@@ -94,11 +94,6 @@ func main() {
 	currConnections := uint64(0)
 	attack.currConn = &currConnections
 
-	// defer func() {
-	// close(quit)
-	// log.Println("Exiting the program")
-	// }()
-
 	i := 1
 	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
