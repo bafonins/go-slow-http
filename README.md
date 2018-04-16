@@ -100,7 +100,7 @@ The tool was tested on Apache web server and Tomcat with standard configuration 
 
 1. Download [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
 2. Download a linux distribution of your choice
-3. One the vm is setup, make sure [Java](https://java.com/en/download/) is installed
+3. Once the vm is setup, make sure [Java](https://java.com/en/download/) is installed
 4. Download and install [Tomcat](https://tomcat.apache.org/download-70.cgi)
 5. Enter the Tomcat directory, `cd bin && catalina.sh start`
 6. Once Tomcat is up, run the tool as explained in the **Execute** section. Note that the standard configuration of Tomcat can hold only 300 simultaneous connections, so `-c 301` should be enough
