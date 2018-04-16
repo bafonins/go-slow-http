@@ -125,9 +125,9 @@ func main() {
 	}
 
 	go monitor(attack, endpoint, i, dial, quit)
+	wg.Add(int(*attack.currConn) + 1)
 
 	time.Sleep(time.Second * time.Duration(*attack.duration))
-	wg.Add(int(*attack.currConn) + 1)
 	close(quit)
 	wg.Wait()
 	log.Println("<-- Exiting the program")
@@ -180,6 +180,7 @@ func (m *connection) start(counter, timeout *uint64, quit chan bool) {
 
 // tries to create as much tcp connections as possible
 func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (net.Conn, error), quit chan bool) {
+
 	defer func() {
 		log.Println("<-- Stop running the monitoring routine")
 		wg.Done()
@@ -206,6 +207,7 @@ func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (ne
 				}
 
 				lock.Lock()
+				wg.Add(1)
 				*attack.currConn++
 				go connection.start(attack.currConn, attack.timeout, quit)
 				lock.Unlock()
