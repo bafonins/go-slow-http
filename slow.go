@@ -94,11 +94,12 @@ func main() {
 	attack.currConn = &currConnections
 
 	defer func() {
-		close(quit)
+		// close(quit)
+		quit <- true
 		log.Println("Exiting the program")
 	}()
 
-	i := 0
+	i := 1
 	for ; i <= cons; i++ {
 		agent := attack.agents[rand.Intn(len(attack.agents))]
 		connection, err := createConnection(endpoint, attack.serverURL.Path, agent, dial, i)
