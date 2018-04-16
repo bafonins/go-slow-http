@@ -207,6 +207,7 @@ func monitor(attack *attackParams, address *net.TCPAddr, id int, dial func() (ne
 
 				id++
 			} else {
+				lock.Unlock()
 				time.Sleep(retry)
 			}
 		}
